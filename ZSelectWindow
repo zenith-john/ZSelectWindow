@@ -1,0 +1,170 @@
+#! /usr/bin/python3
+import subprocess
+import tkinter as tk
+import tkinter.font as font
+
+
+class WindowManager:
+    def __init__(self, key_list=["a", "s", "d", "f", "j" "k", "l", ";"]):
+        self.window_list = []
+        self.key_list = key_list
+
+    def filter_window(self, x):
+        if len(x) < 5:
+            return True
+        elif int(x[1]) < 0:
+            return True
+        elif x[4] == "Window Selector":
+            return True
+        else:
+            return False
+
+    def get_windows(self):
+        tmp_list = (
+            subprocess.Popen(
+                "wmctrl -x -l", shell=True, stdout=subprocess.PIPE
+            )
+            .stdout.read()
+            .decode()
+            .split("\n")
+        )
+        self.window_list = [self.extract(x) for x in tmp_list[:-1]]
+        self.window_list = [x for x in self.window_list if not x == []]
+
+    def extract(self, string):
+        list = string.split(None, 4)
+        if self.filter_window(list):
+            return []
+        else:
+            return [list[0], list[2].split(".")[1], list[4]]
+
+    def key(self, number):
+        if number < len(self.key_list):
+            return self.key_list[number]
+        else:
+            return " "
+
+    def fill(self, string, length):
+        size = self.unicode_len(string)
+        if size >= length:
+            tmp = string[0:length]
+            size = self.unicode_len(tmp)
+            while size > length:
+                tmp = tmp[: -(max((size - length) // 2, 1))]
+                size = self.unicode_len(tmp)
+            if size < length:
+                tmp = tmp + " " * (length - size)
+            return tmp
+        else:
+            tmp = (length - size) // 2
+            return " " * tmp + string + " " * (length - size - tmp)
+
+    def unicode_len(self, string):
+        return (len(string.encode()) + len(string)) // 2
+
+    def make_string_list(self):
+        return [
+            " " * 10
+            + self.key(i)
+            + " :: "
+            + self.fill(self.window_list[i][1], 15)
+            + " :: "
+            + self.fill(
+                self.window_list[i][2],
+                60
+                - self.unicode_len(self.key(i))
+            )
+            for i in range(len(self.window_list))
+        ]
+
+    def index(self, char):
+        return self.key_list.index(char)
+
+    def select_window(self, char):
+        print("Select " + char)
+        subprocess.run(
+            "wmctrl -a " + self.window_list[self.index(char)][0] + " -i",
+            shell=True,
+        )
+
+
+def center(win):
+    """
+    centers a tkinter window
+    :param win: the root or Toplevel window to center
+    """
+    win.update_idletasks()
+    width = 1120
+    frm_width = win.winfo_rootx() - win.winfo_x()
+    win_width = width + 2 * frm_width
+    height = 630
+    titlebar_height = win.winfo_rooty() - win.winfo_y()
+    win_height = height + titlebar_height + frm_width
+    x = win.winfo_screenwidth() // 2 - win_width // 2
+    y = win.winfo_screenheight() // 2 - win_height // 2
+    win.geometry("{}x{}+{}+{}".format(width, height, x, y))
+    win.deiconify()
+
+
+if __name__ == "__main__":
+    key_list = [
+        "a",
+        "s",
+        "d",
+        "f",
+        "j",
+        "k",
+        "l",
+        ";",
+        "u",
+        "i",
+        "o",
+        "p",
+        "m",
+        ",",
+        ".",
+    ]
+
+    window = tk.Tk()
+    window.title("Window Selector")
+    # run center first to reduce the appearance of small window.
+    center(window)
+    win_man = WindowManager(key_list)
+    win_man.get_windows()
+    # choose a fixed width font
+    default_font = font.Font(family="Sarasa Term SC", size=16)
+    i = 0
+    lst = win_man.make_string_list()
+    print([win_man.unicode_len(x) for x in lst])
+    length = len(lst)
+    for elt in lst:
+        frame = tk.Frame(window, width=1120, height=630 // length)
+        frame.propagate(False)
+        frame.grid(row=i, column=0, sticky="nsew")
+        i = i + 1
+        button = tk.Button(
+            text=elt,
+            master=frame,
+            padx=2,
+            pady=2,
+            anchor=tk.W,
+            justify=tk.LEFT,
+        )
+        button["font"] = default_font
+        button.pack(expand=True, fill=tk.BOTH)
+
+    def handle_keypress(event):
+        try:
+            if event.keysym == "Escape":
+                quit()
+            elif key_list.index(event.char) >= 0:
+                win_man.select_window(event.char)
+                quit()
+        except ValueError:
+            print("Key Not Defined")
+        finally:
+            pass
+
+    window.resizable(width=False, height=False)
+    window.bind("<Key>", handle_keypress)
+    window.mainloop()
